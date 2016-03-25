@@ -120,9 +120,9 @@ module SafeNet
     # payload
     payload = {
       filePath: file_path,
-      isPrivate: options[:is_private],
-      isVersioned: options[:is_versioned],
-      isPathShared: options[:is_path_shared]
+      isPrivate: options[:is_private].to_s,
+      isVersioned: options[:is_versioned].to_s,
+      isPathShared: options[:is_path_shared].to_s
     }
 
     # optional
@@ -154,9 +154,9 @@ module SafeNet
     # payload
     payload = {
       dirPath: dir_path,
-      isPrivate: options[:is_private],
-      isVersioned: options[:is_versioned],
-      isPathShared: options[:is_path_shared]
+      isPrivate: options[:is_private].to_s,
+      isVersioned: options[:is_versioned].to_s,
+      isPathShared: options[:is_path_shared].to_s
     }
 
     # optional
@@ -283,7 +283,7 @@ module SafeNet
       longName: long_name,
       serviceName: service_name,
       serviceHomeDirPath: service_home_dir_path,
-      isPathShared: options[:is_path_shared]
+      isPathShared: options[:is_path_shared].to_s
     }
 
     # optional
