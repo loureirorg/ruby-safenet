@@ -57,6 +57,8 @@ module SafeNet
       conf["privateKey"] = Base64.strict_encode64(private_key)
       File.open(@@CONF_PATH, "w") { |f| f << JSON.pretty_generate(conf) }
 
+      # invalidates @@keys
+      @@keys = {}
     else
       # puts "ERROR #{res.code}: #{res.message}"
       response = nil
