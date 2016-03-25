@@ -93,7 +93,7 @@ module SafeNet
 
   def self.get_directory(dir_path, options = {})
     # default values
-    options[:is_path_shared] ||= false
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
@@ -113,16 +113,16 @@ module SafeNet
     url = "#{@@LAUCHER_SERVER}nfs/file"
 
     # default values
-    options[:is_private]     ||= true
-    options[:is_versioned]   ||= false
-    options[:is_path_shared] ||= false
+    options[:is_private]     = true  if ! options.has_key?(:is_private)
+    options[:is_versioned]   = false if ! options.has_key?(:is_versioned)
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # payload
     payload = {
       filePath: file_path,
-      isPrivate: options[:is_private].to_s,
-      isVersioned: options[:is_versioned].to_s,
-      isPathShared: options[:is_path_shared].to_s
+      isPrivate: options[:is_private],
+      isVersioned: options[:is_versioned],
+      isPathShared: options[:is_path_shared]
     }
 
     # optional
@@ -147,16 +147,16 @@ module SafeNet
     url = "#{@@LAUCHER_SERVER}nfs/directory"
 
     # default values
-    options[:is_private]     ||= true
-    options[:is_versioned]   ||= false
-    options[:is_path_shared] ||= false
+    options[:is_private]     = true  if ! options.has_key?(:is_private)
+    options[:is_versioned]   = false if ! options.has_key?(:is_versioned)
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # payload
     payload = {
       dirPath: dir_path,
-      isPrivate: options[:is_private].to_s,
-      isVersioned: options[:is_versioned].to_s,
-      isPathShared: options[:is_path_shared].to_s
+      isPrivate: options[:is_private],
+      isVersioned: options[:is_versioned],
+      isPathShared: options[:is_path_shared]
     }
 
     # optional
@@ -178,7 +178,7 @@ module SafeNet
   # ex.: delete_directory("/photos")
   def self.delete_directory(dir_path, options = {})
     # default values
-    options[:is_path_shared] ||= false
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
@@ -196,8 +196,8 @@ module SafeNet
   # options: offset, length, is_path_shared
   def self.get_file(file_path, options = {})
     # default values
-    options[:offset]         ||= 0
-    options[:is_path_shared] ||= false
+    options[:offset]         = 0     if ! options.has_key?(:offset)
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?"
@@ -220,8 +220,8 @@ module SafeNet
 
   def self.update_file_content(file_path, contents, options = {})
     # default values
-    options[:offset]         ||= 0
-    options[:is_path_shared] ||= false
+    options[:offset]         = 0     if ! options.has_key?(:offset)
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?offset=#{options[:offset]}"
@@ -240,7 +240,7 @@ module SafeNet
 
   def self.delete_file(file_path, options = {})
     # default values
-    options[:is_path_shared] ||= false
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}"
@@ -276,14 +276,14 @@ module SafeNet
     url = "#{@@LAUCHER_SERVER}dns"
 
     # default values
-    options[:is_path_shared] ||= false
+    options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # payload
     payload = {
       longName: long_name,
       serviceName: service_name,
       serviceHomeDirPath: service_home_dir_path,
-      isPathShared: options[:is_path_shared].to_s
+      isPathShared: options[:is_path_shared]
     }
 
     # optional
@@ -345,7 +345,7 @@ module SafeNet
   # get_file_unauth("thegoogle", "www", "index.html", offset: 3, length: 5)
   def self.get_file_unauth(long_name, service_name, file_path, options = {})
     # default values
-    options[:offset] ||= 0
+    options[:offset] = 0 if ! options.has_key?(:offset)
 
     # entry point
     url = "#{@@LAUCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}?"
