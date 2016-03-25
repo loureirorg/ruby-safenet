@@ -13,7 +13,7 @@ module SafeNet
   @@VENDOR = "maidsafe"
   @@ID = "org.maidsafe.demo"
   @@LAUCHER_SERVER = "http://localhost:8100/"
-  @@CONF_PATH = File.join(File.expand_path('.', __FILE__), "conf.json")
+  @@CONF_PATH = File.join(File.expand_path('..', __FILE__), "conf.json")
 
   def self.set_app_info(options)
     @@NAME = options[:name] if options.has_key?(:name)
