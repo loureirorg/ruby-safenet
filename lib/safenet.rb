@@ -8,10 +8,10 @@ module SafeNet
   require "cgi" # CGI.escape method
 
   # default values
-  @@NAME = "Demo App"
+  @@NAME = "Ruby Demo App"
   @@VERSION = "0.0.1"
-  @@VENDOR = "maidsafe"
-  @@ID = "org.maidsafe.demo"
+  @@VENDOR = "Vendor's Name"
+  @@ID = "org.thevendor.demo"
   @@LAUCHER_SERVER = "http://localhost:8100/"
   @@CONF_PATH = File.join(File.expand_path('..', __FILE__), "conf.json")
 

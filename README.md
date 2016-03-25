@@ -12,10 +12,10 @@ A Ruby library for accessing the SAFE network
 require "safenet"
 
 SafeNet.set_app_info({
-  name:      "Demo App",
+  name:      "Ruby Demo App",
   version:   "0.0.1",
-  vendor:    "maidsafe",
-  id:        "org.maidsafe.demo",
+  vendor:    "Vendor's Name",
+  id:        "org.thevendor.demo",
 })
 
 SafeNet.create_directory("/mydir")
