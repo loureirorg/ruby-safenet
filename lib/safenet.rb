@@ -24,12 +24,38 @@ module SafeNet
     @@CONF_PATH = options[:conf_file] if options.has_key?(:conf_file)
   end
 
+  #
+  # An application exchanges data with the SAFE Launcher using symmetric key
+  #   encryption. The symmetric key is session based and is securely transferred
+  #   from the SAFE Launcher to the application using ECDH Key Exchange.
+  # Applications will generate an asymmetric key pair and a nonce for ECDH Key
+  #   Exchange with the SAFE Launcher.
+  #
+  # The application will initiate the authorisation request with the generated
+  #   nonce and public key, along with information about the application and the
+  #   required permissions.
+  #
+  # The SAFE Launcher will prompt to the user with the application information
+  #   along with the requested permissions. Once the user authorises the
+  #   request, the symmetric keys for encryption are received. If the user
+  #   denies the request then the SAFE Launcher sends an unauthorised error
+  #   response.
+  #
+  # Usage: SafeNet.auth()
+  # Fail: nil
+  # Success: {token: "1222", encryptedKey: "232", "publicKey": "4323", "permissions": []}
+  #
+  # Reference: https://maidsafe.readme.io/docs/auth
+  #
   def self.auth
+    # entry point
     url = "#{@@LAUNCHER_SERVER}auth"
 
+    # new random key
     private_key = RbNaCl::PrivateKey.generate
     nonce = RbNaCl::Random.random_bytes(24)
 
+    # payload
     payload = {
       app: {
         name: @@NAME,
@@ -42,12 +68,14 @@ module SafeNet
       permissions: []
     }
 
+    # api call
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
     req = Net::HTTP::Post.new(uri.path, {'Content-Type' => 'application/json'})
     req.body = payload.to_json
     res = http.request(req)
 
+    # return's parser
     if res.code == "200"
       response = JSON.parse(res.body)
 
@@ -64,13 +92,26 @@ module SafeNet
       response = nil
     end
 
+    # return
     response
   end
 
 
+  #
+  # To check whether the authorisation token obtained is valid.
+  # The Authorization header must be present in the request.
+  #
+  # Usage: SafeNet.is_token_valid()
+  # Fail: false
+  # Success: true
+  #
+  # Reference: https://maidsafe.readme.io/docs/is-token-valid
+  #
   def self.is_token_valid
+    # entry point
     url = "#{@@LAUNCHER_SERVER}auth"
 
+    # api call
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
     req = Net::HTTP::Get.new(uri.path, {
@@ -81,9 +122,20 @@ module SafeNet
   end
 
 
+  #
+  # Removes the token from the SAFE Launcher.
+  #
+  # Usage: SafeNet.revoke_token()
+  # Fail: false
+  # Success: true
+  #
+  # Reference: https://maidsafe.readme.io/docs/revoke-token
+  #
   def self.revoke_token
+    # entry point
     url = "#{@@LAUNCHER_SERVER}auth"
 
+    # api call
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
     req = Net::HTTP::Delete.new(uri.path, {
@@ -93,6 +145,17 @@ module SafeNet
     res.code == "200"
   end
 
+
+  #
+  # Create a directory using the NFS API.
+  # Only authorised requests can create a directory.
+  #
+  # Usage: SafeNet.get_directory("/photos", is_path_shared: false)
+  # Fail: {"errorCode"=>-1502, "description"=>"FfiError::PathNotFound"}
+  # Success: {"info"=> {"name"=> "Ruby Demo App-Root-Dir", ...}, ...}
+  #
+  # Reference: https://maidsafe.readme.io/docs/nfs-create-directory
+  #
   def self.get_directory(dir_path, options = {})
     # default values
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
@@ -100,6 +163,7 @@ module SafeNet
     # entry point
     url = "#{@@LAUNCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
 
+    # api call
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
     req = Net::HTTP::Get.new(uri.path, {
@@ -110,7 +174,16 @@ module SafeNet
   end
 
 
-  # options = is_private, metadata, is_versioned, is_path_shared
+  #
+  # Create a File using the NFS API.
+  # Only authorised requests can invoke the API.
+  #
+  # Usage: SafeNet.file("/photos/cat.jpg", metadata: {item1: "ad sad"}, is_path_shared: false, is_private: true, is_versioned: false)
+  # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+  # Success: true
+  #
+  # Reference: https://maidsafe.readme.io/docs/nfsfile
+  #
   def self.file(file_path, options = {})
     url = "#{@@LAUNCHER_SERVER}nfs/file"
 
@@ -143,9 +216,18 @@ module SafeNet
   end
 
 
-  # options = is_private, metadata, is_versioned, is_path_shared
-  # ex.: create_directory("/photos")
+  #
+  # Create a directory using the NFS API.
+  # Only authorised requests can create a directory.
+  #
+  # Usage: SafeNet.create_directory("/photos", metadata: {entry1: "2323"}, is_private: true, is_path_shared: false, is_versioned: false)
+  # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+  # Success: true
+  #
+  # Reference: https://maidsafe.readme.io/docs/nfs-create-directory
+  #
   def self.create_directory(dir_path, options = {})
+    # entry point
     url = "#{@@LAUNCHER_SERVER}nfs/directory"
 
     # default values
@@ -259,6 +341,7 @@ module SafeNet
 
 
   def self.create_long_name(long_name)
+    # entry point
     url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(long_name)}"
 
     # api call
@@ -275,6 +358,7 @@ module SafeNet
 
   # ex.: register_service("thegoogle", "www", "/www")
   def self.register_service(long_name, service_name, service_home_dir_path, options = {})
+    # entry point
     url = "#{@@LAUNCHER_SERVER}dns"
 
     # default values
@@ -305,6 +389,7 @@ module SafeNet
 
 
   def self.list_long_names
+    # entry point
     url = "#{@@LAUNCHER_SERVER}dns"
 
     # api call
@@ -319,6 +404,7 @@ module SafeNet
 
 
   def self.list_services(long_name)
+    # entry point
     url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(long_name)}"
 
     # api call
@@ -333,6 +419,7 @@ module SafeNet
 
 
   def self.get_home_dir(long_name, service_name)
+    # entry point
     url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
 
     # api call
