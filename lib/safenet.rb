@@ -12,7 +12,7 @@ module SafeNet
   @@VERSION = "0.0.1"
   @@VENDOR = "Vendor's Name"
   @@ID = "org.thevendor.demo"
-  @@LAUCHER_SERVER = "http://localhost:8100/"
+  @@LAUNCHER_SERVER = "http://localhost:8100/"
   @@CONF_PATH = File.join(File.expand_path('..', __FILE__), "conf.json")
 
   def self.set_app_info(options)
@@ -20,12 +20,12 @@ module SafeNet
     @@VERSION = options[:version] if options.has_key?(:version)
     @@VENDOR = options[:vendor] if options.has_key?(:vendor)
     @@ID = options[:id] if options.has_key?(:id)
-    @@LAUCHER_SERVER = options[:server] if options.has_key?(:server)
+    @@LAUNCHER_SERVER = options[:server] if options.has_key?(:server)
     @@CONF_PATH = options[:conf_file] if options.has_key?(:conf_file)
   end
 
   def self.auth
-    url = "#{@@LAUCHER_SERVER}auth"
+    url = "#{@@LAUNCHER_SERVER}auth"
 
     private_key = RbNaCl::PrivateKey.generate
     nonce = RbNaCl::Random.random_bytes(24)
@@ -69,7 +69,7 @@ module SafeNet
 
 
   def self.is_token_valid
-    url = "#{@@LAUCHER_SERVER}auth"
+    url = "#{@@LAUNCHER_SERVER}auth"
 
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
@@ -82,7 +82,7 @@ module SafeNet
 
 
   def self.revoke_token
-    url = "#{@@LAUCHER_SERVER}auth"
+    url = "#{@@LAUNCHER_SERVER}auth"
 
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
@@ -98,7 +98,7 @@ module SafeNet
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
+    url = "#{@@LAUNCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
 
     uri = URI(url)
     http = Net::HTTP.new(uri.host, uri.port)
@@ -112,7 +112,7 @@ module SafeNet
 
   # options = is_private, metadata, is_versioned, is_path_shared
   def self.file(file_path, options = {})
-    url = "#{@@LAUCHER_SERVER}nfs/file"
+    url = "#{@@LAUNCHER_SERVER}nfs/file"
 
     # default values
     options[:is_private]     = true  if ! options.has_key?(:is_private)
@@ -146,7 +146,7 @@ module SafeNet
   # options = is_private, metadata, is_versioned, is_path_shared
   # ex.: create_directory("/photos")
   def self.create_directory(dir_path, options = {})
-    url = "#{@@LAUCHER_SERVER}nfs/directory"
+    url = "#{@@LAUNCHER_SERVER}nfs/directory"
 
     # default values
     options[:is_private]     = true  if ! options.has_key?(:is_private)
@@ -183,7 +183,7 @@ module SafeNet
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
+    url = "#{@@LAUNCHER_SERVER}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
 
     # api call
     uri = URI(url)
@@ -202,7 +202,7 @@ module SafeNet
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?"
+    url = "#{@@LAUNCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?"
 
     # query params are encrypted
     query = []
@@ -226,7 +226,7 @@ module SafeNet
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?offset=#{options[:offset]}"
+    url = "#{@@LAUNCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?offset=#{options[:offset]}"
 
     # api call
     uri = URI(url)
@@ -245,7 +245,7 @@ module SafeNet
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}"
+    url = "#{@@LAUNCHER_SERVER}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}"
 
     # api call
     uri = URI(url)
@@ -259,7 +259,7 @@ module SafeNet
 
 
   def self.create_long_name(long_name)
-    url = "#{@@LAUCHER_SERVER}dns/#{CGI.escape(long_name)}"
+    url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(long_name)}"
 
     # api call
     uri = URI(url)
@@ -275,7 +275,7 @@ module SafeNet
 
   # ex.: register_service("thegoogle", "www", "/www")
   def self.register_service(long_name, service_name, service_home_dir_path, options = {})
-    url = "#{@@LAUCHER_SERVER}dns"
+    url = "#{@@LAUNCHER_SERVER}dns"
 
     # default values
     options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
@@ -305,7 +305,7 @@ module SafeNet
 
 
   def self.list_long_names
-    url = "#{@@LAUCHER_SERVER}dns"
+    url = "#{@@LAUNCHER_SERVER}dns"
 
     # api call
     uri = URI(url)
@@ -319,7 +319,7 @@ module SafeNet
 
 
   def self.list_services(long_name)
-    url = "#{@@LAUCHER_SERVER}dns/#{CGI.escape(long_name)}"
+    url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(long_name)}"
 
     # api call
     uri = URI(url)
@@ -333,7 +333,7 @@ module SafeNet
 
 
   def self.get_home_dir(long_name, service_name)
-    url = "#{@@LAUCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
+    url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
 
     # api call
     uri = URI(url)
@@ -350,7 +350,7 @@ module SafeNet
     options[:offset] = 0 if ! options.has_key?(:offset)
 
     # entry point
-    url = "#{@@LAUCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}?"
+    url = "#{@@LAUNCHER_SERVER}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}?"
 
     # query params are encrypted
     query = []
