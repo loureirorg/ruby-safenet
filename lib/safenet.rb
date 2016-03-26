@@ -178,7 +178,8 @@ module SafeNet
   # Create a File using the NFS API.
   # Only authorised requests can invoke the API.
   #
-  # Usage: SafeNet.file("/photos/cat.jpg", metadata: {item1: "ad sad"}, is_path_shared: false, is_private: true, is_versioned: false)
+  # Usage: SafeNet.file("/photos/cat.jpg")
+  # Adv.Usage: SafeNet.file("/photos/cat.jpg", is_private: true, metadata: "some meta", is_path_shared: false, is_versioned: false)
   # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
   # Success: true
   #
@@ -201,7 +202,7 @@ module SafeNet
     }
 
     # optional
-    payload["metadata"] = options[:metadata] if options.has_key?(:metadata)
+    payload["metadata"] = Base64.strict_encode64(options[:metadata]) if options.has_key?(:metadata)
 
     # api call
     uri = URI(url)
@@ -220,7 +221,8 @@ module SafeNet
   # Create a directory using the NFS API.
   # Only authorised requests can create a directory.
   #
-  # Usage: SafeNet.create_directory("/photos", metadata: {entry1: "2323"}, is_private: true, is_path_shared: false, is_versioned: false)
+  # Usage: SafeNet.create_directory("/photos")
+  # Adv.Usage: SafeNet.create_directory("/photos", is_private: true, metadata: "some meta", is_path_shared: false, is_versioned: false)
   # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
   # Success: true
   #
@@ -244,7 +246,7 @@ module SafeNet
     }
 
     # optional
-    payload["metadata"] = options[:metadata] if options.has_key?(:metadata)
+    payload["metadata"] = Base64.strict_encode64(options[:metadata]) if options.has_key?(:metadata)
 
     # api call
     uri = URI(url)
