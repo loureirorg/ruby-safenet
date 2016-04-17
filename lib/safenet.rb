@@ -13,7 +13,7 @@ require "cgi" # CGI.escape method
 module SafeNet
 
   class Client
-    attr_reader :auth, :nfs, :dns, :app_info, :key_helper
+    attr_reader :auth, :nfs, :dns, :sd, :app_info, :key_helper
 
     def initialize(options = {})
       @app_info = defaults()
@@ -22,6 +22,7 @@ module SafeNet
       @auth = SafeNet::Auth.new(self)
       @nfs = SafeNet::NFS.new(self)
       @dns = SafeNet::DNS.new(self)
+      @sd = SafeNet::SD.new(self)
     end
 
     def set_app_info(options = {})
@@ -545,7 +546,7 @@ module SafeNet
 
     # https://maidsafe.readme.io/docs/dns-get-file-unauth
     # get_file_unauth("thegoogle", "www", "index.html", offset: 3, length: 5)
-    def self.get_file_unauth(long_name, service_name, file_path, options = {})
+    def get_file_unauth(long_name, service_name, file_path, options = {})
       # default values
       options[:offset] = 0 if ! options.has_key?(:offset)
 
@@ -564,6 +565,35 @@ module SafeNet
       req = Net::HTTP::Get.new(uri.path)
       res = http.request(req)
       res.code == "200" ? res.body : JSON.parse(res.body)
+    end
+  end
+
+  class SD
+    def initialize(client_obj)
+      @client = client_obj
+    end
+
+    def create(id, tag_type, contents)
+      version = 1
+      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
+      res = @client.nfs.create_directory("/#{new_id}", is_private: false) == true
+      res &&= @client.nfs.file("/#{new_id}/data.#{version}", is_private: false) == true
+      res &&= @client.nfs.update_file_content("/#{new_id}/data.#{version}", contents) == true
+      res &&= @client.dns.register_service("#{new_id}", "sd", "/#{new_id}") == true
+      res
+    end
+
+    def update(id, tag_type, contents)
+      version = 1
+      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
+      res = @client.nfs.update_file_content("/#{new_id}/data.#{version}", contents) == true
+      res
+    end
+
+    def get(id, tag_type)
+      version = 1
+      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
+      @client.dns.get_file_unauth("#{new_id}", "sd", "data.#{version}")
     end
   end
 end

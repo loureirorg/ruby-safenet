@@ -51,9 +51,16 @@ my_client.nfs.get_directory("/mydir")["files"].each do |file|
 end
 ```
 
+## Structured Data (SD): **EMULATED**
+SD's have not been officially implemented by MaidSafe, but we provide a sub-module (sd) that emulates it.
+All the information are stored in the Safe Network, through DNS/NFS sub-systems.
+
 ## Supported methods:
 |Module|Method|Arguments|Optional|Doc|
 |------|------|---------|--------|---|
+|sd|create|id, tag_type, contents|||
+|sd|update|id, tag_type, contents|||
+|sd|get|id, tag_type|||
 |nfs|create_directory|dir_path|is_private, is_versioned, is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
 |nfs|get_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-get-directory|
 |nfs|delete_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
