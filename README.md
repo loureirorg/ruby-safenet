@@ -55,6 +55,16 @@ end
 SD's have not been officially implemented by MaidSafe, but we provide a sub-module (sd) that emulates it.
 All the information are stored in the Safe Network, through DNS/NFS sub-systems.
 
+Example:
+```ruby
+my_client.sd.create(37267, 102, "Hello World") # 37267 = id, 102 = tag_type
+my_client.sd.get(37267, 102)
+my_client.sd.update(37267, 102, "Hello World!")
+```
+
+For more information see:
+https://github.com/maidsafe/rfcs/blob/master/proposed/0028-launcher-low-level-api/0028-launcher-low-level-api.md
+
 ## Supported methods:
 |Module|Method|Arguments|Optional|Doc|
 |------|------|---------|--------|---|
