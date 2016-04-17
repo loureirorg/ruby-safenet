@@ -54,7 +54,7 @@ end
 ## Supported methods:
 |Module|Method|Arguments|Optional|Doc|
 |------|------|---------|--------|---|
-|nfs|create_directory|dir_path|is_private, is_versioned, is_path_shared|Reference: https://maidsafe.readme.io/docs/nfs-create-directory|
+|nfs|create_directory|dir_path|is_private, is_versioned, is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
 |nfs|get_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-get-directory|
 |nfs|delete_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
 |nfs|file|file_path|is_private, is_versioned, is_path_shared|https://maidsafe.readme.io/docs/nfsfile|
