@@ -52,15 +52,17 @@ end
 ```
 
 ## Structured Data (SD): **EMULATED**
-SD's have not been officially implemented by MaidSafe, but we provide a sub-module (sd) that emulates it.
+Although SD has not been officially implemented by MaidSafe yet, we provide a sub-module (sd) that emulates it.
 All the information are stored in the Safe Network, through DNS/NFS sub-systems.
 
 Example:
 ```ruby
-my_client.sd.create(37267, 102, "Hello World") # 37267 = id, 102 = tag_type
-my_client.sd.get(37267, 102)
-my_client.sd.update(37267, 102, "Hello World!")
+my_client.sd.create(37267, 11, "Hello World") # 37267 = id, 11 = tag_type
+my_client.sd.get(37267, 11)
+my_client.sd.update(37267, 11, "Hello World!")
 ```
+
+Encryption and versioning are both not supported in this emulated version.
 
 For more information see:
 https://github.com/maidsafe/rfcs/blob/master/proposed/0028-launcher-low-level-api/0028-launcher-low-level-api.md
