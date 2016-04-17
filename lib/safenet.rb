@@ -579,7 +579,7 @@ module SafeNet
       res = @client.nfs.create_directory("/#{new_id}", is_private: false) == true
       res &&= @client.nfs.file("/#{new_id}/data.#{version}", is_private: false) == true
       res &&= @client.nfs.update_file_content("/#{new_id}/data.#{version}", contents) == true
-      res &&= @client.dns.register_service("#{new_id}", "sd", "/#{new_id}") == true
+      res &&= @client.dns.register_service("SD#{new_id}", "sd", "/#{new_id}") == true
       res
     end
 
@@ -593,7 +593,7 @@ module SafeNet
     def get(id, tag_type)
       version = 1
       new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      @client.dns.get_file_unauth("#{new_id}", "sd", "data.#{version}")
+      @client.dns.get_file_unauth("SD#{new_id}", "sd", "data.#{version}")
     end
   end
 end
