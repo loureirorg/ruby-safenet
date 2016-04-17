@@ -13,7 +13,7 @@ require "cgi" # CGI.escape method
 module SafeNet
 
   class Client
-    attr_reader :auth, :nfs, :dns, :sd, :app_info, :key_helper
+    attr_reader :auth, :nfs, :dns, :sd, :raw, :app_info, :key_helper
 
     def initialize(options = {})
       @app_info = defaults()
@@ -23,6 +23,7 @@ module SafeNet
       @nfs = SafeNet::NFS.new(self)
       @dns = SafeNet::DNS.new(self)
       @sd = SafeNet::SD.new(self)
+      @raw = SafeNet::Raw.new(self)
     end
 
     def set_app_info(options = {})
@@ -594,6 +595,28 @@ module SafeNet
       version = 1
       new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
       @client.dns.get_file_unauth("SD#{new_id}", "sd", "data.#{version}")
+    end
+  end
+
+  class Raw
+    def initialize(client_obj)
+      @client = client_obj
+    end
+
+    def create(contents)
+      id = Digest::SHA2.new(512).hexdigest(contents)
+      @client.sd.create(id, -1, contents)
+      id
+    end
+
+    def create_from_file(local_path)
+      id = Digest::SHA2.new(512).file(local_path).hexdigest
+      @client.sd.create(id, -1, File.read(local_path))
+      id
+    end
+
+    def get(id)
+      @client.sd.get(id, -1)
     end
   end
 end

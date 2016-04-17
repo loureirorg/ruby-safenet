@@ -60,6 +60,10 @@ Example:
 my_client.sd.create(37267, 11, "Hello World") # 37267 = id, 11 = tag_type
 my_client.sd.get(37267, 11)
 my_client.sd.update(37267, 11, "Hello World!")
+
+my_client.raw.create("Hello World!") # => "861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8"
+my_client.raw.create_from_file("/home/daniel/dog.jpg")
+my_client.raw.get("861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8") # => "Hello World!"
 ```
 
 Encryption and versioning are both not supported in this emulated version.
