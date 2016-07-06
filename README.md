@@ -4,7 +4,7 @@ A simple SAFE API wrapper written in Ruby.
 
 ## Installation
 ```
-  $ gem install safenet
+  $ gem install ruby-safenet
 ```
 
 ## Usage
