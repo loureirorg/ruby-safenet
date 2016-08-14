@@ -1,15 +1,9 @@
 require "safenet/version"
 require "net/http"
-require "rbnacl"
 require "base64"
 require "json"
 require "cgi" # CGI.escape method
 
-# usage:
-#  my_client = SafeNet::Client.new(name: 'My App')
-#  my_client.nfs.file('x.txt')
-#  my_client.nfs.update_file_content('x.txt', 'Hello World!')
-#  my_client.nfs.get_file('x.txt')
 module SafeNet
 
   class Client
@@ -54,7 +48,6 @@ module SafeNet
 
     def initialize(client_obj)
       @client = client_obj
-      @keys = {}
       @conf = {}
     end
 
@@ -70,50 +63,6 @@ module SafeNet
       @conf["token"]
     end
 
-    def decrypt(message_base64)
-      keys = get_keys()
-      keys["secret_box"].decrypt(keys["symmetric_nonce"], Base64.strict_decode64(message_base64))
-    end
-
-    def encrypt(message)
-      keys = get_keys()
-      res = keys["secret_box"].encrypt(keys["symmetric_nonce"], message)
-      Base64.strict_encode64(res)
-    end
-
-    def invalidate
-      @keys = {}
-    end
-
-    private
-
-    def get_keys
-      # not loaded yet?
-      if @keys.empty?
-        get_valid_token() if @conf.empty?
-
-        # extract keys
-        cipher_text = Base64.strict_decode64(@conf["encryptedKey"])
-        nonce = Base64.strict_decode64(@conf["nonce"])
-        private_key = Base64.strict_decode64(@conf["privateKey"])
-        public_key = Base64.strict_decode64(@conf["publicKey"])
-
-        box = RbNaCl::Box.new(public_key, private_key)
-        data = box.decrypt(nonce, cipher_text)
-
-        # The first segment of the data will have the symmetric key
-        @keys["symmetric_key"] = data.slice(0, RbNaCl::SecretBox.key_bytes)
-
-        # The second segment of the data will have the nonce to be used
-        @keys["symmetric_nonce"] = data.slice(RbNaCl::SecretBox.key_bytes, RbNaCl::SecretBox.key_bytes)
-
-        # keep the box object in cache
-        @keys["secret_box"] = RbNaCl::SecretBox.new(@keys["symmetric_key"])
-      end
-
-      @keys
-    end
-
   end
 
   class Auth
@@ -122,35 +71,29 @@ module SafeNet
     end
 
     #
-    # An application exchanges data with the SAFE Launcher using symmetric key
-    #   encryption. The symmetric key is session based and is securely transferred
-    #   from the SAFE Launcher to the application using ECDH Key Exchange.
-    # Applications will generate an asymmetric key pair and a nonce for ECDH Key
-    #   Exchange with the SAFE Launcher.
+    # Any application that wants to access API endpoints that require authorised
+    #  access must receive an authorisation token from SAFE Launcher.
     #
-    # The application will initiate the authorisation request with the generated
-    #   nonce and public key, along with information about the application and the
-    #   required permissions.
+    # Reading public data using the DNS API does not require an authorisation
+    #  token. All other API endpoints require authorised access.
     #
-    # The SAFE Launcher will prompt to the user with the application information
-    #   along with the requested permissions. Once the user authorises the
-    #   request, the symmetric keys for encryption are received. If the user
-    #   denies the request then the SAFE Launcher sends an unauthorised error
-    #   response.
+    # The application will initiate the authorisation request with information
+    #  about the application itself and the required permissions. SAFE Launcher
+    #  will then display a prompt to the user with the application information
+    #  along with the requested permissions. Once the user authorises the
+    #  request, the application will receive an authorisation token. If the user
+    #  denies the request, the application will receive an unauthorised error
+    #  response.
     #
-    # Usage: my_client.auth()
+    # Usage: my_client.auth.auth(["SAFE_DRIVE_ACCESS"])
     # Fail: nil
-    # Success: {token: "1222", encryptedKey: "232", "publicKey": "4323", "permissions": []}
+    # Success: {token: "1222", "permissions": []}
     #
     # Reference: https://maidsafe.readme.io/docs/auth
     #
-    def auth
+    def auth(permissions = [])
       # entry point
       url = "#{@client.app_info[:launcher_server]}auth"
-
-      # new random key
-      private_key = RbNaCl::PrivateKey.generate
-      nonce = RbNaCl::Random.random_bytes(24)
 
       # payload
       payload = {
@@ -160,9 +103,7 @@ module SafeNet
           vendor: @client.app_info[:vendor],
           id: @client.app_info[:id]
         },
-        publicKey: Base64.strict_encode64(private_key.public_key),
-        nonce: Base64.strict_encode64(nonce),
-        permissions: []
+        permissions: permissions
       }
 
       # api call
@@ -178,12 +119,7 @@ module SafeNet
 
         # save it in conf.json
         conf = response.dup
-        conf["nonce"] = Base64.strict_encode64(nonce)
-        conf["privateKey"] = Base64.strict_encode64(private_key)
         File.open(@client.app_info[:conf_path], "w") { |f| f << JSON.pretty_generate(conf) }
-
-        # invalidates @keys
-        @client.key_helper.invalidate()
       else
         # puts "ERROR #{res.code}: #{res.message}"
         response = nil
@@ -195,10 +131,10 @@ module SafeNet
 
 
     #
-    # To check whether the authorisation token obtained is valid.
-    # The Authorization header must be present in the request.
+    # Check whether the authorisation token obtained from SAFE Launcher is still
+    #  valid.
     #
-    # Usage: SafeNet.is_token_valid()
+    # Usage: my_client.auth.is_token_valid()
     # Fail: false
     # Success: true
     #
@@ -220,9 +156,9 @@ module SafeNet
 
 
     #
-    # Removes the token from the SAFE Launcher.
+    # Revoke the authorisation token obtained from SAFE Launcher.
     #
-    # Usage: SafeNet.revoke_token()
+    # Usage: my_client.auth.revoke_token()
     # Fail: false
     # Success: true
     #
@@ -250,198 +186,333 @@ module SafeNet
     end
 
     #
-    # Create a directory using the NFS API.
+    # Create a public or private directory either in the application's root
+    #  directory or in SAFE Drive.
     # Only authorised requests can create a directory.
     #
-    # Usage: SafeNet.get_directory("/photos", is_path_shared: false)
-    # Fail: {"errorCode"=>-1502, "description"=>"FfiError::PathNotFound"}
-    # Success: {"info"=> {"name"=> "Ruby Demo App-Root-Dir", ...}, ...}
-    #
-    # Reference: https://maidsafe.readme.io/docs/nfs-get-directory
-    #
-    def get_directory(dir_path, options = {})
-      # default values
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
-
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
-
-      # api call
-      uri = URI(url)
-      http = Net::HTTP.new(uri.host, uri.port)
-      req = Net::HTTP::Get.new(uri.path, {
-        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-      })
-      res = http.request(req)
-      JSON.parse(@client.key_helper.decrypt(res.body))
-    end
-
-
-    #
-    # Create a File using the NFS API.
-    # Only authorised requests can invoke the API.
-    #
-    # Usage: SafeNet.file("/photos/cat.jpg")
-    # Adv.Usage: SafeNet.file("/photos/cat.jpg", is_private: true, metadata: "some meta", is_path_shared: false, is_versioned: false)
-    # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
-    # Success: true
-    #
-    # Reference: https://maidsafe.readme.io/docs/nfsfile
-    #
-    def file(file_path, options = {})
-      url = "#{@client.app_info[:launcher_server]}nfs/file"
-
-      # default values
-      options[:is_private]     = true  if ! options.has_key?(:is_private)
-      options[:is_versioned]   = false if ! options.has_key?(:is_versioned)
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
-
-      # payload
-      payload = {
-        filePath: file_path,
-        isPrivate: options[:is_private],
-        isVersioned: options[:is_versioned],
-        isPathShared: options[:is_path_shared]
-      }
-
-      # optional
-      payload["metadata"] = Base64.strict_encode64(options[:metadata]) if options.has_key?(:metadata)
-
-      # api call
-      uri = URI(url)
-      http = Net::HTTP.new(uri.host, uri.port)
-      req = Net::HTTP::Post.new(uri.path, {
-        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-        'Content-Type' => 'text/plain'
-      })
-      req.body = @client.key_helper.encrypt(payload.to_json)
-      res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
-    end
-
-
-    #
-    # Create a directory using the NFS API.
-    # Only authorised requests can create a directory.
-    #
-    # Usage: SafeNet.create_directory("/photos")
-    # Adv.Usage: SafeNet.create_directory("/photos", is_private: true, metadata: "some meta", is_path_shared: false, is_versioned: false)
+    # Usage: my_client.nfs.create_directory("/photos")
+    # Adv.Usage: my_client.nfs.create_directory("/photos", meta: "some meta", root_path: 'drive', is_private: true)
     # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
     # Success: true
     #
     # Reference: https://maidsafe.readme.io/docs/nfs-create-directory
     #
     def create_directory(dir_path, options = {})
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory"
-
-      # default values
+      # Default values
+      options[:root_path]      = 'app' if ! options.has_key?(:root_path)
       options[:is_private]     = true  if ! options.has_key?(:is_private)
-      options[:is_versioned]   = false if ! options.has_key?(:is_versioned)
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
-      # payload
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+
+      # Payload
       payload = {
-        dirPath: dir_path,
         isPrivate: options[:is_private],
-        isVersioned: options[:is_versioned],
-        isPathShared: options[:is_path_shared]
       }
 
-      # optional
-      payload["metadata"] = Base64.strict_encode64(options[:metadata]) if options.has_key?(:metadata)
+      # Optional
+      payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
 
-      # api call
+      # API call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Post.new(uri.path, {
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-        'Content-Type' => 'text/plain'
+        'Content-Type' => 'application/json'
       })
-      req.body = @client.key_helper.encrypt(payload.to_json)
+      req.body = payload.to_json
       res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+      res.code == "200" ? true : JSON.parse(res.body)
     end
 
-
-    # ex.: delete_directory("/photos")
-    def delete_directory(dir_path, options = {})
-      # default values
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
-
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{CGI.escape(dir_path)}/#{options[:is_path_shared]}"
-
-      # api call
-      uri = URI(url)
-      http = Net::HTTP.new(uri.host, uri.port)
-      req = Net::HTTP::Delete.new(uri.path, {
-        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-      })
-      res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+    # Alias
+    def create_public_directory(dir_path, options = {})
+      options[:is_private] = false
+      self.create_directory(dir_path, options)
     end
 
-    # options: offset, length, is_path_shared
-    def get_file(file_path, options = {})
-      # default values
-      options[:offset]         = 0     if ! options.has_key?(:offset)
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
+    # Alias
+    def create_private_directory(dir_path, options = {})
+      options[:is_private] = true
+      self.create_directory(dir_path, options)
+    end
 
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?"
+    #
+    # Fetch a directory.
+    # Only authorised requests can invoke this API.
+    #
+    # Usage: my_client.nfs.get_directory("/photos", root_path: 'drive')
+    # Fail: {"errorCode"=>-1502, "description"=>"FfiError::PathNotFound"}
+    # Success: {"info"=> {"name"=> "my_dir", ...}, ...}
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-get-directory
+    #
+    def get_directory(dir_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
-      # query params are encrypted
-      query = []
-      query << "offset=#{options[:offset]}"
-      query << "length=#{options[:length]}" if options.has_key?(:length) # length is optional
-      url = "#{url}#{@client.key_helper.encrypt(query.join('&'))}"
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
 
-      # api call
+      # API call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Get.new(uri.path, {
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
       })
       res = http.request(req)
-      res.code == "200" ? @client.key_helper.decrypt(res.body) : JSON.parse(@client.key_helper.decrypt(res.body))
+      JSON.parse(res.body)
     end
 
-    def update_file_content(file_path, contents, options = {})
-      # default values
-      options[:offset]         = 0     if ! options.has_key?(:offset)
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
 
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}?offset=#{options[:offset]}"
+    #
+    # Rename a directory and (optionally) update its metadata.
+    # Only authorised requests can invoke this API.
+    #
+    # Rename: my_client.nfs.update_directory("/photos", name: "pics")
+    # Change meta: my_client.nfs.update_directory("/photos", meta: "new meta")
+    # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-update-directory
+    #
+    def update_directory(dir_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
-      # api call
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+
+      # Optional payload
+      payload = {}
+      payload["name"] = CGI.escape(options[:name]) if options.has_key?(:name)
+      payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
+
+      # API call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Put.new(uri.path, {
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-        'Content-Type' => 'text/plain'
+        'Content-Type' => 'application/json'
       })
-      req.body = @client.key_helper.encrypt(contents)
+      req.body = payload.to_json
       res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+      res.code == "200" ? true : JSON.parse(res.body)
     end
 
-    def delete_file(file_path, options = {})
-      # default values
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
+    # Alias
+    def rename_directory(dir_path, new_name, options = {})
+      options[:name] = new_name
+      self.update_directory(dir_path, options)
+    end
 
-      # entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{CGI.escape(file_path)}/#{options[:is_path_shared]}"
+    #
+    # Delete a directory.
+    # Only authorised requests can invoke this API.
+    #
+    # Rename: my_client.nfs.delete_directory("/photos")
+    # Change meta: my_client.nfs.delete_directory("/photos", root_path: "app")
+    # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-delete-directory
+    #
+    def delete_directory(dir_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
-      # api call
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+
+      # API call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Delete.new(uri.path, {
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
       })
       res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+
+    #
+    # Create a file.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.nfs.create_file("/docs/hello.txt", "Hello World!")
+    # Adv.Usage: my_client.nfs.create_file("/docs/hello.txt", meta: "some meta", root_path: "app", content_type: "text/plain")
+    # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfsfile
+    #
+    def create_file(file_path, contents, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
+      contents ||= ""
+
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      headers = {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+      }
+      headers["Metadata"]       = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
+      headers["Content-Type"]   = options[:content_type] || 'text/plain'
+      headers["Content-Length"] = contents.size.to_s
+      req = Net::HTTP::Post.new(uri.path, headers)
+      req.body = contents
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+
+    #
+    # Fetch the metadata of a file.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.nfs.get_file_meta("/docs/hello.txt")
+    # Adv.Usage: my_client.nfs.get_file_meta("/docs/hello.txt", root_path: "app")
+    # Fail: {"errorCode"=>-505, "description"=>"NfsError::FileAlreadyExistsWithSameName"}
+    # Success:
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-get-file-metadata
+    #
+    def get_file_meta(file_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
+
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      headers = {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+      }
+      req = Net::HTTP::Head.new(uri.path, headers)
+      res = http.request(req)
+      res_headers = {}
+      res.response.each_header {|k,v| res_headers[k] = v}
+      res_headers["metadata"] = Base64.strict_decode64(res_headers["metadata"]) if res_headers.has_key?("metadata")
+      res.code == "200" ? {"headers" => res_headers, "body" => res.body} : JSON.parse(res.body)
+    end
+
+
+    #
+    # Read a file.
+    # The file can be streamed in chunks and also fetched as partial content
+    #  based on the range header specified in the request.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.nfs.get_file("/docs/hello.txt")
+    # Adv.Usage: my_client.nfs.get_file("/docs/hello.txt", range: "bytes 0-1000", root_path: "app")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: {"headers"=>{"x-powered-by"=>"Express", "content-range"=>"bytes 0-4/4", "accept-ranges"=>"bytes", "content-length"=>"4", "created-on"=>"2016-08-14T12:51:18.924Z", "last-modified"=>"2016-08-14T12:51:18.935Z", "content-type"=>"text/plain", "date"=>"Sun, 14 Aug 2016 13:30:07 GMT", "connection"=>"close"}, "body"=>"Test"}
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-get-file
+    #
+    def get_file(file_path, options = {})
+      # Default values
+      options[:offset]    = 0     if ! options.has_key?(:offset)
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
+
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}?"
+
+      # Query params
+      query = []
+      query << "offset=#{options[:offset]}"
+      query << "length=#{options[:length]}" if options.has_key?(:length) # length is optional
+      url = "#{url}#{query.join('&')}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      headers = {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+      }
+      headers["Range"] = options[:range] if options.has_key?(:range)
+      req = Net::HTTP::Get.new(uri.path, headers)
+      res = http.request(req)
+      res_headers = {}
+      res.response.each_header {|k,v| res_headers[k] = v}
+      res.code == "200" ? {"headers" => res_headers, "body" => res.body} : JSON.parse(res.body)
+    end
+
+
+    #
+    # Rename a file and (optionally) update its metadata.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.nfs.update_file_metadata("/docs/hello.txt")
+    # Adv.Usage: my_client.nfs.get_file("/docs/hello.txt", range: "bytes 0-1000", root_path: "app")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: {"headers"=>{"x-powered-by"=>"Express", "content-range"=>"bytes 0-4/4", "accept-ranges"=>"bytes", "content-length"=>"4", "created-on"=>"2016-08-14T12:51:18.924Z", "last-modified"=>"2016-08-14T12:51:18.935Z", "content-type"=>"text/plain", "date"=>"Sun, 14 Aug 2016 13:30:07 GMT", "connection"=>"close"}, "body"=>"Test"}
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-update-file-metadata
+    #
+    def update_file_meta(file_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
+
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/file/metadata/#{options[:root_path]}/#{CGI.escape(file_path)}"
+
+      # Optional payload
+      payload = {}
+      payload["name"] = CGI.escape(options[:name]) if options.has_key?(:name)
+      payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    # Alias
+    def rename_file(file_path, new_name, options = {})
+      options[:name] = new_name
+      self.update_file_meta(file_path)
+    end
+
+
+    #
+    # Delete a file.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.nfs.delete_file("/docs/hello.txt")
+    # Adv.Usage: my_client.nfs.delete_file("/docs/hello.txt", root_path: "app")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/nfs-delete-file
+    #
+    def delete_file(file_path, options = {})
+      # Default values
+      options[:root_path] = 'app' if ! options.has_key?(:root_path)
+
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
     end
   end
 
@@ -451,7 +522,16 @@ module SafeNet
       @client = client_obj
     end
 
-    # https://maidsafe.readme.io/docs/dns-create-long-name
+    #
+    # Register a long name. Long names are public names that can be shared.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.dns.create_long_name("my-domain")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/dns-create-long-name
+    #
     def create_long_name(long_name)
       # entry point
       url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(long_name)}"
@@ -464,41 +544,82 @@ module SafeNet
         'Content-Type' => 'text/plain'
       })
       res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+      res.code == "200" ? true : JSON.parse(res.body)
     end
 
 
-    # ex.: register_service("thegoogle", "www", "/www")
-    # https://maidsafe.readme.io/docs/dns-register-service
+    #
+    # Register a long name and a service.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.dns.register_service("my-domain", "www", "/sources")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/dns-register-service
+    #
     def register_service(long_name, service_name, service_home_dir_path, options = {})
-      # entry point
+      # Entry point
       url = "#{@client.app_info[:launcher_server]}dns"
 
-      # default values
-      options[:is_path_shared] = false if ! options.has_key?(:is_path_shared)
-
-      # payload
+      # Payload
       payload = {
         longName: long_name,
         serviceName: service_name,
+        rootPath: 'app',
         serviceHomeDirPath: service_home_dir_path,
-        isPathShared: options[:is_path_shared]
       }
 
-      # optional
-      payload["metadata"] = options[:metadata] if options.has_key?(:metadata)
+      # Optional
+      payload["metadata"] = options[:meta] if options.has_key?(:meta)
 
-      # api call
+      # API call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Post.new(uri.path, {
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
-        'Content-Type' => 'text/plain'
+        'Content-Type' => 'application/json'
       })
-      req.body = @client.key_helper.encrypt(payload.to_json)
+      req.body = payload.to_json
       res = http.request(req)
-      res.code == "200" ? true : JSON.parse(@client.key_helper.decrypt(res.body))
+      res.code == "200" ? true : JSON.parse(res.body)
     end
+
+
+    #
+    # Add a service to a registered long name.
+    # Only authorised requests can invoke the API.
+    #
+    # Usage: my_client.dns.add_service("my-domain", "www", "/sources")
+    # Fail: {"errorCode"=>-1503, "description"=>"FfiError::InvalidPath"}
+    # Success: true
+    #
+    # Reference: https://maidsafe.readme.io/docs/dns
+    #
+    def add_service(long_name, service_name, service_home_dir_path)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}dns"
+
+      # Payload
+      payload = {
+        longName: long_name,
+        serviceName: service_name,
+        rootPath: 'app',
+        serviceHomeDirPath: service_home_dir_path,
+      }
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
 
     # https://maidsafe.readme.io/docs/dns-list-long-names
     def list_long_names
@@ -512,7 +633,7 @@ module SafeNet
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
       })
       res = http.request(req)
-      JSON.parse(@client.key_helper.decrypt(res.body))
+      JSON.parse(res.body)
     end
 
     # https://maidsafe.readme.io/docs/dns-list-services
@@ -527,7 +648,7 @@ module SafeNet
         'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
       })
       res = http.request(req)
-      JSON.parse(@client.key_helper.decrypt(res.body))
+      JSON.parse(res.body)
     end
 
 
@@ -541,31 +662,26 @@ module SafeNet
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Get.new(uri.path)
       res = http.request(req)
-      JSON.parse(res.body)
+      res = JSON.parse(res.body)
+      res["info"]["metadata"] = Base64.strict_decode64(res["info"]["metadata"]) if res.has_key?("info") && res["info"].has_key?("metadata")
+      res
     end
 
 
     # https://maidsafe.readme.io/docs/dns-get-file-unauth
-    # get_file_unauth("thegoogle", "www", "index.html", offset: 3, length: 5)
-    def get_file_unauth(long_name, service_name, file_path, options = {})
-      # default values
-      options[:offset] = 0 if ! options.has_key?(:offset)
-
+    # get_file_unauth("thegoogle", "www", "index.html")
+    def get_file_unauth(long_name, service_name, file_path)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}?"
-
-      # query params are encrypted
-      query = []
-      query << "offset=#{options[:offset]}"
-      query << "length=#{options[:length]}" if options.has_key?(:length) # length is optional
-      url = "#{url}#{@client.key_helper.encrypt(query.join('&'))}"
+      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}"
 
       # api call
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
       req = Net::HTTP::Get.new(uri.path)
       res = http.request(req)
-      res.code == "200" ? res.body : JSON.parse(res.body)
+      res_headers = {}
+      res.response.each_header {|k,v| res_headers[k] = v}
+      res.code == "200" ? {"headers" => res_headers, "body" => res.body} : JSON.parse(res.body)
     end
   end
 
@@ -575,26 +691,37 @@ module SafeNet
     end
 
     def create(id, tag_type, contents)
-      version = 1
+      return { "errorCode" => -99991, "description" => "SD max size currently limited to 70k" } if contents.size > 1024 * 70
       new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      res = @client.nfs.create_directory("/#{new_id}", is_private: false) == true
-      res &&= @client.nfs.file("/#{new_id}/data.#{version}", is_private: false) == true
-      res &&= @client.nfs.update_file_content("/#{new_id}/data.#{version}", contents) == true
-      res &&= @client.dns.register_service("SD#{new_id}", "sd", "/#{new_id}") == true
+      res = @client.nfs.create_public_directory("/_sds/#{new_id}", meta: contents)
+      if res != true
+        if res["errorCode"] == -1502 # "_sds" directory doesn't exist
+          @client.nfs.create_public_directory("/_sds")
+          res = @client.nfs.create_public_directory("/_sds/#{new_id}", meta: contents) == true
+        else # unknown error
+          res = false
+        end
+      end
+      res &&= @client.dns.register_service("sd#{new_id[0..48]}", "sds", "/_sds/#{new_id}") == true
       res
     end
 
     def update(id, tag_type, contents)
-      version = 1
       new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      res = @client.nfs.update_file_content("/#{new_id}/data.#{version}", contents) == true
+      res = @client.nfs.update_directory("/_sds/#{new_id}", meta: contents)
+      if res != true
+        if res["errorCode"] == -1502 # SD doesn't exist yet
+          res = self.create(id, tag_type, contents) == true
+        else # unknown error
+          res = false
+        end
+      end
       res
     end
 
     def get(id, tag_type)
-      version = 1
       new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      @client.dns.get_file_unauth("SD#{new_id}", "sd", "data.#{version}")
+      @client.dns.get_home_dir("sd#{new_id[0..48]}", "sds").try(:[], "info").try(:[], "metadata")
     end
   end
 

@@ -2,6 +2,8 @@
 
 A simple SAFE API wrapper written in Ruby.
 
+**Tested Aug 14, 2016. Working with SAFE version 0.5.**
+
 ## Installation
 ```
   $ gem install ruby-safenet
@@ -13,11 +15,10 @@ A simple SAFE API wrapper written in Ruby.
 require "safenet"
 
 my_client = SafeNet::Client.new
-my_client.nfs.create_directory("/mydir", is_private: false)
-my_client.nfs.file("/mydir/index.html", is_private: false)
-my_client.nfs.update_file_content("/mydir/index.html", "Hello world!<br>I'm a webpage :D")
+my_client.nfs.create_public_directory("/mydir")
+my_client.nfs.create_file("/mydir/index.html", "Hello world!<br>I'm a webpage :D")
 my_client.dns.register_service("my-wonderful-app", "www", "/mydir")
-my_client.dns.get_file("/mydir/index.html")
+my_client.nfs.get_file("/mydir/index.html")
 
 # Then, open http://www.my-wonderful-app.safenet/
 ```
@@ -28,19 +29,18 @@ my_client = SafeNet::Client.new({
   name:      "Ruby Demo App",
   version:   "0.0.1",
   vendor:    "Vendor's Name",
-  id:        "org.thevendor.demo",
+  id:        "thevendor.demo",
 })
 ```
 
 *File Upload / Download:*
 ```ruby
 # upload
-my_client.nfs.file("/mydir/dog.jpg")
-my_client.nfs.update_file_content("/mydir/dog.jpg", File.read("/home/daniel/Pictures/dog.jpg"))
+my_client.nfs.create_file("/mydir/dog.jpg", File.read("/home/daniel/Pictures/dog.jpg"), content_type: "image/jpeg")
 
 # download
 File.open("/home/daniel/Pictures/dog-new.jpg", "w") do |file|
-  file.write(my_client.nfs.get_file("/mydir/dog.jpg"))
+  file.write(my_client.nfs.get_file("/mydir/dog.jpg")["body"])
 end
 ```
 
@@ -57,7 +57,7 @@ All the information are stored in the Safe Network, through DNS/NFS sub-systems.
 
 Example:
 ```ruby
-my_client.sd.create(37267, 11, "Hello World") # 37267 = id, 11 = tag_type
+my_client.sd.update(37267, 11, "Hi John") # 37267 = id, 11 = tag_type
 my_client.sd.get(37267, 11)
 my_client.sd.update(37267, 11, "Hello World!")
 
@@ -69,24 +69,29 @@ my_client.raw.get("861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c72
 Encryption and versioning are both not supported in this emulated version.
 
 For more information see:
-https://github.com/maidsafe/rfcs/blob/master/proposed/0028-launcher-low-level-api/0028-launcher-low-level-api.md
+https://github.com/maidsafe/rfcs/blob/master/text/0028-launcher-low-level-api/0028-launcher-low-level-api.md
 
 ## Supported methods:
 |Module|Method|Arguments|Optional|Doc|
 |------|------|---------|--------|---|
-|sd|create|id, tag_type, contents|||
-|sd|update|id, tag_type, contents|||
-|sd|get|id, tag_type|||
-|nfs|create_directory|dir_path|is_private, is_versioned, is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
-|nfs|get_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-get-directory|
-|nfs|delete_directory|dir_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-create-directory|
-|nfs|file|file_path|is_private, is_versioned, is_path_shared|https://maidsafe.readme.io/docs/nfsfile|
-|nfs|get_file|file_path|is_path_shared, offset, length|https://maidsafe.readme.io/docs/nfs-get-file|
-|nfs|update_file_content|file_path, contents|is_path_shared, offset|https://maidsafe.readme.io/docs/nfs-update-file-content|
-|nfs|delete_file|file_path|is_path_shared|https://maidsafe.readme.io/docs/nfs-delete-file|
-|dns|create_long_name|long_name||https://maidsafe.readme.io/docs/dns-create-long-name|
-|dns|register_service|long_name, service_name, service_home_dir_path|is_path_shared, metadata|https://maidsafe.readme.io/docs/dns-register-service|
-|dns|list_long_names||is_path_shared, metadata|https://maidsafe.readme.io/docs/dns-list-long-names|
-|dns|list_services|long_name||https://maidsafe.readme.io/docs/dns-list-services|
-|dns|get_home_dir|long_name, service_name||https://maidsafe.readme.io/docs/dns-get-home-dir|
-|dns|get_file_unauth|long_name, service_name, file_path|offset, length|https://maidsafe.readme.io/docs/dns-get-file-unauth|
+|sd|update|id (_int_), tag_type (_int_), contents (_string_\|_binary_)|||
+|sd|get|id (_int_), tag_type (_int_)|||
+|nfs|create_public_directory|dir_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* _Alias to "create_directory"_|
+|nfs|create_private_directory|dir_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* _Alias to "create_directory"_|
+|nfs|create_directory|dir_path (_string_)|is_private (_bool_), root_path ("_app_" or "_drive_"), meta (_string_)|https://maidsafe.readme.io/docs/nfs-create-directory|
+|nfs|get_directory|dir_path (_string_)|root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/nfs-get-directory|
+|nfs|rename_directory|dir_path (_string_), new_name (_string_)|root_path ("_app_" or "_drive_")|* _Alias to update_directory_|
+|nfs|update_directory|dir_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_), name (_string_)|https://maidsafe.readme.io/docs/nfs-update-directory|
+|nfs|delete_directory|dir_path (_string_)|root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/nfs-create-directory|
+|nfs|create_file|file_path (_string_), contents (_string_ \| _binary_)|root_path ("_app_" or "_drive_"), meta (_string_), content_type (_string_)|https://maidsafe.readme.io/docs/nfsfile|
+|nfs|get_file|file_path (_string_)|root_path ("_app_" or "_drive_"), offset (_int_), length (_int_), range (eg. "bytes 0-1000")|https://maidsafe.readme.io/docs/nfs-get-file|
+|nfs|rename_file|file_path (_string_), new_name (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* Alias to "update_file_meta"|
+|nfs|update_file_meta|file_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_), name (_string_)|https://maidsafe.readme.io/docs/nfs-update-file-metadata|
+|nfs|delete_file|file_path (_string_)|root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/nfs-delete-file|
+|dns|create_long_name|long_name (_string_)||https://maidsafe.readme.io/docs/dns-create-long-name|
+|dns|register_service|long_name (_string_), service_name (_string_), service_home_dir_path (_string_)||https://maidsafe.readme.io/docs/dns-register-service|
+|dns|add_service|long_name (_string_), service_name (_string_), service_home_dir_path (_string_)||https://maidsafe.readme.io/docs/dns|
+|dns|list_long_names||root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/dns-list-long-names|
+|dns|list_services|long_name (_string_)||https://maidsafe.readme.io/docs/dns-list-services|
+|dns|get_home_dir|long_name (_string_), service_name (_string_)||https://maidsafe.readme.io/docs/dns-get-home-dir|
+|dns|get_file_unauth|long_name (_string_), service_name (_string_), file_path (_string_)||https://maidsafe.readme.io/docs/dns-get-file-unauth|
