@@ -51,7 +51,19 @@ safe.nfs.get_directory("/mydir")["files"].each do |file|
 end
 ```
 
-## Structured Data (SD):
+## Structured Data (SD) - With helpers:
+
+```ruby
+safe = SafeNet::quick_start
+
+safe.sd.create('my_sd', 'Hello SD!')
+puts safe.sd.read('my_sd') # Hello SD!
+
+safe.sd.update('my_sd', 'Hello SD 2!')
+puts safe.sd.read('my_sd') # Hello SD 2!
+```
+
+## Structured Data (SD) - With safe primitives:
 
 ```ruby
 # client
@@ -61,8 +73,8 @@ safe = SafeNet::Client.new(permissions: ["LOW_LEVEL_API"])
 hnd_cipher = safe.cipher.get_handle
 
 # create
-name = SafeNet::s2h("my_sd")
-hnd = safe.sd.create(name, 500, hnd_cipher, IO.binread("#{Rails.root}/my_file.txt"))
+name = SafeNet::s2b('my_sd')
+hnd = safe.sd.create_sd(name, 500, hnd_cipher, IO.binread("#{Rails.root}/my_file.txt"))
 safe.sd.put(hnd) # saves on the network
 safe.sd.drop_handle(hnd) # release handler
 
@@ -70,16 +82,29 @@ safe.sd.drop_handle(hnd) # release handler
 safe.cipher.drop_handle(hnd_cipher)
 
 # read
-name = SafeNet::s2h("my_sd")
+name = SafeNet::s2b('my_sd')
 hnd_sd_data_id = safe.data_id.get_data_id_sd(name)
 hnd_sd = safe.sd.get_handle(hnd_sd_data_id)['handleId']
-contents = safe.sd.read(hnd_sd)
+contents = safe.sd.read_data(hnd_sd)
 safe.sd.drop_handle(hnd_sd)
 safe.data_id.drop_handle(hnd_sd_data_id)
 puts contents # print SD contents on screen
 ```
 
-## Immutable Data:
+## Immutable Data - With helpers:
+```ruby
+# client
+safe = SafeNet::quick_start
+
+# write
+name = safe.immutable.write('Hello SD')
+puts "Immutable name:\n  * Binary: #{name}\n  * Hex...: #{name.unpack("H*").first}\n  * Base64: #{Base64.encode64(name)}"
+
+# read
+puts safe.immutable.read(name)
+```
+
+## Immutable Data - With safe primitives:
 
 ```ruby
 # client
@@ -95,12 +120,15 @@ hnd_data_id = safe.immutable.close_writer(hnd_w, hnd_cipher)
 name = safe.data_id.serialize(hnd_data_id) # IMMUTABLE NAME
 safe.immutable.drop_writer_handle(hnd_w)
 safe.data_id.drop_handle(hnd_data_id)
-puts "Immutable name: #{name}"
+puts "Immutable name:\n  * Binary: #{name}\n  * Hex...: #{name.unpack("H*").first}\n  * Base64: #{Base64.encode64(name)}"
+
+# release cipher handler
+safe.cipher.drop_handle(hnd_cipher)
 
 # read
 hnd_data_id = safe.data_id.deserialize(name)
 hnd_r = safe.immutable.get_reader_handle(hnd_data_id)
-contents = safe.immutable.read(hnd_r)
+contents = safe.immutable.read_data(hnd_r)
 safe.immutable.drop_reader_handle(hnd_r)
 safe.data_id.drop_handle(hnd_data_id)
 puts contents
@@ -111,13 +139,13 @@ max_chunk_size = 100_000
 
 hnd_data_id = safe.data_id.deserialize(name)
 hnd_r = safe.immutable.get_reader_handle(hnd_data_id)
-contents = safe.immutable.read(hnd_r, "bytes=#{chunk_pos}-#{chunk_pos+max_chunk_size}")
+contents = safe.immutable.read_data(hnd_r, "bytes=#{chunk_pos}-#{chunk_pos+max_chunk_size}")
 safe.immutable.drop_reader_handle(hnd_r)
 safe.data_id.drop_handle(hnd_data_id)
 puts contents
 ```
 
-<!-- id = SafeNet.s2h("my_sd")
+<!-- id = SafeNet.s2b('my_sd')
 safe.sd.update(id, 500, "Hi John")
 safe.sd.get(id, 500)
 safe.sd.update(id, 500, "Hello World!") -->

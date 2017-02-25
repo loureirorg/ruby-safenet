@@ -838,7 +838,7 @@ module SafeNet
       @client = client_obj
     end
 
-    def create(name, type_tag = 500, hnd_cipher_opts = nil, data = nil, version = 0)
+    def create_sd(name, type_tag = 500, hnd_cipher_opts = nil, data = nil, version = 0)
       # Entry point
       url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data"
 
@@ -934,7 +934,7 @@ module SafeNet
       JSON.parse(res.body)
     end
 
-    def read(handle_id, version = nil)
+    def read_data(handle_id, version = nil)
       # entry point
       url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/#{handle_id}"
       url = "#{url}/#{version}?" if ! version.nil?
@@ -959,6 +959,52 @@ module SafeNet
       req = Net::HTTP::Delete.new(uri.path)
       res = http.request(req)
       res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def create(name, contents, type = 500)
+      name = name.is_a?(String) ? SafeNet::s2b(name) : name
+
+      # plain (not encrypted)
+      hnd_cipher = @client.cipher.get_handle
+
+      # create
+      hnd = @client.sd.create_sd(name, type, hnd_cipher, contents)
+      res = @client.sd.put(hnd) # saves on the network
+      @client.sd.drop_handle(hnd) # release handler
+
+      # release cipher handler
+      @client.cipher.drop_handle(hnd_cipher)
+
+      res
+    end
+
+    def read(name, type = 500)
+      name = name.is_a?(String) ? SafeNet::s2b(name) : name
+
+      hnd_sd_data_id = @client.data_id.get_data_id_sd(name)
+      hnd_sd = @client.sd.get_handle(hnd_sd_data_id)['handleId']
+      contents = @client.sd.read_data(hnd_sd)
+      @client.sd.drop_handle(hnd_sd)
+      @client.data_id.drop_handle(hnd_sd_data_id)
+
+      contents
+    end
+
+    def update(name, contents, type = 500)
+      name = name.is_a?(String) ? SafeNet::s2b(name) : name
+
+      # plain (not encrypted)
+      hnd_cipher = @client.cipher.get_handle
+
+      # create
+      hnd = @client.sd.create_sd(name, type, hnd_cipher, contents)
+      res = @client.sd.post(hnd) # saves on the network
+      @client.sd.drop_handle(hnd) # release handler
+
+      # release cipher handler
+      @client.cipher.drop_handle(hnd_cipher)
+
+      res
     end
   end
 
@@ -996,7 +1042,7 @@ module SafeNet
     end
 
     # eg range: "bytes=0-1000"
-    def read(handle_id, range = nil)
+    def read_data(handle_id, range = nil)
       # entry point
       url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/#{handle_id}"
 
@@ -1069,6 +1115,40 @@ module SafeNet
       })
       res = http.request(req)
       res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    # helper
+    def write(contents)
+      # plain (not encrypted)
+      hnd_cipher = @client.cipher.get_handle
+
+      # write
+      hnd_w = @client.immutable.get_writer_handle
+      @client.immutable.write_data(hnd_w, contents)
+      hnd_data_id = @client.immutable.close_writer(hnd_w, hnd_cipher)
+      name = @client.data_id.serialize(hnd_data_id)
+      @client.immutable.drop_writer_handle(hnd_w)
+      @client.data_id.drop_handle(hnd_data_id)
+
+      # release cipher handler
+      @client.cipher.drop_handle(hnd_cipher)
+
+      name
+    end
+
+    # helper
+    def read(name, chunk_pos = nil, max_chunk_size = 1_000_000)
+      hnd_data_id = @client.data_id.deserialize(name)
+      hnd_r = @client.immutable.get_reader_handle(hnd_data_id)
+      contents = if chunk_pos
+        @client.immutable.read_data(hnd_r, "bytes=#{chunk_pos}-#{chunk_pos+max_chunk_size}")
+      else
+        @client.immutable.read_data(hnd_r)
+      end
+      @client.immutable.drop_reader_handle(hnd_r)
+      @client.data_id.drop_handle(hnd_data_id)
+
+      contents
     end
   end
 
@@ -1204,8 +1284,29 @@ module SafeNet
 
   end
 
-  def self.s2h(str)
+  def self.quick_start(low_level_api = true, safe_drive_access = true)
+    permissions = []
+    permissions << 'LOW_LEVEL_API' if low_level_api
+    permissions << 'SAFE_DRIVE_ACCESS' if safe_drive_access
+    SafeNet::Client.new(permissions: permissions)
+  end
+
+  def self.s2b(str)
     # Digest::SHA2.new(256).hexdigest(str)
     Digest::SHA2.new(256).base64digest(str)
+  end
+
+  def self.bin_name(str)
+    BinName.new(str)
+  end
+
+  class BinName
+    def initializer(str)
+      @value = str
+    end
+
+    def to_s
+      @value
+    end
   end
 end
