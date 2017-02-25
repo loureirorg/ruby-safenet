@@ -20,7 +20,7 @@ safe.nfs.create_file("/mydir/index.html", "Hello world!<br>I'm a webpage :D")
 safe.dns.register_service("my-wonderful-app", "www", "/mydir")
 safe.nfs.get_file("/mydir/index.html")
 
-# Then, open http://www.my-wonderful-app.safenet/
+# Then, open safe://www.my-wonderful-app/
 ```
 
 You can also set a more detailed App info:
@@ -54,13 +54,27 @@ end
 ## Structured Data (SD) - With helpers:
 
 ```ruby
-safe = SafeNet::quick_start
+safe = safenet_quick
 
 safe.sd.create('my_sd', 'Hello SD!')
 puts safe.sd.read('my_sd') # Hello SD!
 
 safe.sd.update('my_sd', 'Hello SD 2!')
 puts safe.sd.read('my_sd') # Hello SD 2!
+```
+
+## Immutable Data - With helpers:
+```ruby
+# client
+safe = safenet_quick
+
+# write / read
+name = safe.immutable.create('Hello SD') # name = base64 encoded
+puts safe.immutable.read(name)
+
+# write from file
+name = safe.immutable.create_from_file("#{Rails.root}/my_file.txt")
+safe.immutable.dump(name, "#{Rails.root}/from_safenet.txt")
 ```
 
 ## Structured Data (SD) - With safe primitives:
@@ -89,19 +103,6 @@ contents = safe.sd.read_data(hnd_sd)
 safe.sd.drop_handle(hnd_sd)
 safe.data_id.drop_handle(hnd_sd_data_id)
 puts contents # print SD contents on screen
-```
-
-## Immutable Data - With helpers:
-```ruby
-# client
-safe = SafeNet::quick_start
-
-# write
-name = safe.immutable.write('Hello SD')
-puts "Immutable name:\n  * Binary: #{name}\n  * Hex...: #{name.unpack("H*").first}\n  * Base64: #{Base64.encode64(name)}"
-
-# read
-puts safe.immutable.read(name)
 ```
 
 ## Immutable Data - With safe primitives:
@@ -143,16 +144,6 @@ contents = safe.immutable.read_data(hnd_r, "bytes=#{chunk_pos}-#{chunk_pos+max_c
 safe.immutable.drop_reader_handle(hnd_r)
 safe.data_id.drop_handle(hnd_data_id)
 puts contents
-```
-
-<!-- id = SafeNet.s2b('my_sd')
-safe.sd.update(id, 500, "Hi John")
-safe.sd.get(id, 500)
-safe.sd.update(id, 500, "Hello World!") -->
-
-<!-- id = safe.immutable.create("Hello World!") # => "861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8"
-safe.immutable.create_from_file("/home/daniel/dog.jpg")
-safe.immutable.get(id) # => "Hello World!" -->
 ```
 
 ## Supported methods:

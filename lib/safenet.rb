@@ -1006,6 +1006,16 @@ module SafeNet
 
       res
     end
+
+    def read_or_create(name, contents = '', type = 500)
+      sd = @client.sd.read(name)
+      if sd.is_a?(Hash) # doesn't exist
+        sd = contents
+        @client.sd.create(name, sd, type)
+      end
+
+      sd
+    end
   end
 
   class Immutable
@@ -1118,7 +1128,7 @@ module SafeNet
     end
 
     # helper
-    def write(contents)
+    def create(contents)
       # plain (not encrypted)
       hnd_cipher = @client.cipher.get_handle
 
@@ -1133,11 +1143,30 @@ module SafeNet
       # release cipher handler
       @client.cipher.drop_handle(hnd_cipher)
 
-      name
+      Base64.encode64(name).chomp
+    end
+
+    # helper
+    def create_from_file(path)
+      @client.immutable.create(IO.binread(path))
+    end
+
+    # helper
+    def dump(name, path)
+      contents = nil
+
+      File.open(path, "wb") do |file|
+        contents = @client.immutable.read(name)
+        file.write(contents)
+      end
+
+      contents.is_a?(Hash) ? contents : true
     end
 
     # helper
     def read(name, chunk_pos = nil, max_chunk_size = 1_000_000)
+      name = Base64.decode64(name)
+
       hnd_data_id = @client.data_id.deserialize(name)
       hnd_r = @client.immutable.get_reader_handle(hnd_data_id)
       contents = if chunk_pos
@@ -1281,14 +1310,6 @@ module SafeNet
       res = http.request(req)
       res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
     end
-
-  end
-
-  def self.quick_start(low_level_api = true, safe_drive_access = true)
-    permissions = []
-    permissions << 'LOW_LEVEL_API' if low_level_api
-    permissions << 'SAFE_DRIVE_ACCESS' if safe_drive_access
-    SafeNet::Client.new(permissions: permissions)
   end
 
   def self.s2b(str)
@@ -1309,4 +1330,11 @@ module SafeNet
       @value
     end
   end
+end
+
+def safenet_quick(low_level_api = true, safe_drive_access = true)
+  permissions = []
+  permissions << 'LOW_LEVEL_API' if low_level_api
+  permissions << 'SAFE_DRIVE_ACCESS' if safe_drive_access
+  SafeNet::Client.new(permissions: permissions)
 end
