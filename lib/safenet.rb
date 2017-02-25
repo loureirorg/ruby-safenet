@@ -4,10 +4,13 @@ require "base64"
 require "json"
 require "cgi" # CGI.escape method
 
+API_VERSION = 0.5
+API_ENDPOINT = "http://localhost:8100/"
+
 module SafeNet
 
   class Client
-    attr_reader :auth, :nfs, :dns, :sd, :raw, :app_info, :key_helper
+    attr_reader :auth, :nfs, :dns, :sd, :ad, :immutable, :cipher, :data_id, :app_info, :key_helper
 
     def initialize(options = {})
       @app_info = defaults()
@@ -17,10 +20,14 @@ module SafeNet
       @nfs = SafeNet::NFS.new(self)
       @dns = SafeNet::DNS.new(self)
       @sd = SafeNet::SD.new(self)
-      @raw = SafeNet::Raw.new(self)
+      @ad = SafeNet::AD.new(self)
+      @immutable = SafeNet::Immutable.new(self)
+      @cipher = SafeNet::Cipher.new(self)
+      @data_id = SafeNet::DataId.new(self)
     end
 
     def set_app_info(options = {})
+      @app_info[:permissions] = options[:permissions] if options.has_key?(:permissions)
       @app_info[:name] = options[:name] if options.has_key?(:name)
       @app_info[:version] = options[:version] if options.has_key?(:version)
       @app_info[:vendor] = options[:vendor] if options.has_key?(:vendor)
@@ -38,7 +45,7 @@ module SafeNet
         version: "0.0.1",
         vendor: "Vendor's Name",
         id: "org.thevendor.demo",
-        launcher_server: "http://localhost:8100/",
+        launcher_server: API_ENDPOINT,
         conf_path: File.join(File.expand_path('..', __FILE__), "conf.json")
       }
     end
@@ -91,9 +98,9 @@ module SafeNet
     #
     # Reference: https://maidsafe.readme.io/docs/auth
     #
-    def auth(permissions = [])
+    def auth()
       # entry point
-      url = "#{@client.app_info[:launcher_server]}auth"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/auth"
 
       # payload
       payload = {
@@ -103,7 +110,7 @@ module SafeNet
           vendor: @client.app_info[:vendor],
           id: @client.app_info[:id]
         },
-        permissions: permissions
+        permissions: @client.app_info[:permissions]
       }
 
       # api call
@@ -142,7 +149,7 @@ module SafeNet
     #
     def is_token_valid
       # entry point
-      url = "#{@client.app_info[:launcher_server]}auth"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/auth"
 
       # api call
       uri = URI(url)
@@ -166,7 +173,7 @@ module SafeNet
     #
     def revoke_token
       # entry point
-      url = "#{@client.app_info[:launcher_server]}auth"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/auth"
 
       # api call
       uri = URI(url)
@@ -203,7 +210,7 @@ module SafeNet
       options[:is_private]     = true  if ! options.has_key?(:is_private)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
 
       # Payload
       payload = {
@@ -252,7 +259,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
 
       # API call
       uri = URI(url)
@@ -281,7 +288,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
 
       # Optional payload
       payload = {}
@@ -322,7 +329,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
 
       # API call
       uri = URI(url)
@@ -352,7 +359,7 @@ module SafeNet
       contents ||= ""
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -386,7 +393,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -422,7 +429,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}?"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}?"
 
       # Query params
       query = []
@@ -461,7 +468,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/metadata/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/metadata/#{options[:root_path]}/#{CGI.escape(file_path)}"
 
       # Optional payload
       payload = {}
@@ -503,7 +510,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -534,7 +541,7 @@ module SafeNet
     #
     def create_long_name(long_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -560,7 +567,7 @@ module SafeNet
     #
     def register_service(long_name, service_name, service_home_dir_path, options = {})
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}dns"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns"
 
       # Payload
       payload = {
@@ -598,7 +605,7 @@ module SafeNet
     #
     def add_service(long_name, service_name, service_home_dir_path)
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}dns"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns"
 
       # Payload
       payload = {
@@ -624,7 +631,7 @@ module SafeNet
     # https://maidsafe.readme.io/docs/dns-list-long-names
     def list_long_names
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns"
 
       # api call
       uri = URI(url)
@@ -639,7 +646,7 @@ module SafeNet
     # https://maidsafe.readme.io/docs/dns-list-services
     def list_services(long_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -655,7 +662,7 @@ module SafeNet
     # https://maidsafe.readme.io/docs/dns-get-home-dir
     def get_home_dir(long_name, service_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -672,7 +679,7 @@ module SafeNet
     # get_file_unauth("thegoogle", "www", "index.html")
     def get_file_unauth(long_name, service_name, file_path)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}"
 
       # api call
       uri = URI(url)
@@ -685,65 +692,520 @@ module SafeNet
     end
   end
 
+  class AD
+    def initialize(client_obj)
+      @client = client_obj
+    end
+
+    def create(name, is_private = false, filter_type = 'BLACK_LIST', filter_key = nil)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data"
+
+      # Payload
+      payload = {
+        name: name,
+        isPrivate: is_private,
+        filterType: filter_type,
+        filterKey: filter_key
+      }
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
+    end
+
+    def put(handle_id)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/#{handle_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def post(handle_id)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/#{handle_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def get_handle(data_id_handle)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/handle/#{data_id_handle}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      JSON.parse(res.body)
+    end
+
+    def get_data_id_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/data-id/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
+    end
+
+    def get_metadata(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/metadata/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      JSON.parse(res.body)
+    end
+
+    def drop_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/handle/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path)
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def append(handle_id, handle_data_id)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/#{handle_id}/#{handle_data_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def get_data_id_at_index(handle_id, index)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/appendable-data/#{handle_id}/#{index}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)["handleId"] : JSON.parse(res.body)
+    end
+
+  end
+
   class SD
     def initialize(client_obj)
       @client = client_obj
     end
 
-    def create(id, tag_type, contents)
-      return { "errorCode" => -99991, "description" => "SD max size currently limited to 70k" } if contents.size > 1024 * 70
-      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      res = @client.nfs.create_public_directory("/_sds/#{new_id}", meta: contents)
-      if res != true
-        if res["errorCode"] == -1502 # "_sds" directory doesn't exist
-          @client.nfs.create_public_directory("/_sds")
-          res = @client.nfs.create_public_directory("/_sds/#{new_id}", meta: contents) == true
-        else # unknown error
-          res = false
-        end
-      end
-      res &&= @client.dns.register_service("sd#{new_id[0..48]}", "sds", "/_sds/#{new_id}") == true
-      res
+    def create(name, type_tag = 500, hnd_cipher_opts = nil, data = nil, version = 0)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data"
+
+      # Payload
+      payload = {
+        name: name,
+        typeTag: type_tag,
+        cipherOpts: hnd_cipher_opts,
+        data: Base64.encode64(data),
+        version: version
+      }
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
     end
 
-    def update(id, tag_type, contents)
-      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      res = @client.nfs.update_directory("/_sds/#{new_id}", meta: contents)
-      if res != true
-        if res["errorCode"] == -1502 # SD doesn't exist yet
-          res = self.create(id, tag_type, contents) == true
-        else # unknown error
-          res = false
-        end
-      end
-      res
+
+    def put(handle_id)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/#{handle_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
     end
 
-    def get(id, tag_type)
-      new_id = Digest::SHA2.new(512).hexdigest("#{id}#{tag_type}")
-      @client.dns.get_home_dir("sd#{new_id[0..48]}", "sds").try(:[], "info").try(:[], "metadata")
+    def post(handle_id)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/#{handle_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def get_handle(data_id_handle)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/handle/#{data_id_handle}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      JSON.parse(res.body)
+    end
+
+    def get_data_id_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/data-id/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      JSON.parse(res.body)
+    end
+
+    def get_metadata(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/metadata/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      JSON.parse(res.body)
+    end
+
+    def read(handle_id, version = nil)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/#{handle_id}"
+      url = "#{url}/#{version}?" if ! version.nil?
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? res.body : JSON.parse(res.body)
+    end
+
+    def drop_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/structured-data/handle/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path)
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
     end
   end
 
-  class Raw
+  class Immutable
     def initialize(client_obj)
       @client = client_obj
     end
 
-    def create(contents)
-      id = Digest::SHA2.new(512).hexdigest(contents)
-      @client.sd.create(id, -1, contents)
-      id
+    def get_reader_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/reader/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)["handleId"] : JSON.parse(res.body)
     end
 
-    def create_from_file(local_path)
-      id = Digest::SHA2.new(512).file(local_path).hexdigest
-      @client.sd.create(id, -1, File.read(local_path))
-      id
+    def get_writer_handle()
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/writer"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)["handleId"] : JSON.parse(res.body)
     end
 
-    def get(id)
-      @client.sd.get(id, -1)
+    # eg range: "bytes=0-1000"
+    def read(handle_id, range = nil)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      header = { 'Authorization' => "Bearer #{@client.key_helper.get_token()}", 'Content-Type': 'text/plain' }
+      header['Range'] = range if range
+      req = Net::HTTP::Get.new(uri.path, header)
+      res = http.request(req)
+      (res.code == "200" || res.code == "206") ? res.body : JSON.parse(res.body)
     end
+
+    def write_data(handle_id, contents)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/#{handle_id}"
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      headers = {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type': 'text/plain'
+      }
+      headers["Content-Length"] = contents.size.to_s
+      req = Net::HTTP::Post.new(uri.path, headers)
+      req.body = contents
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def close_writer(handle_id, cipher_opts_handle)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/#{handle_id}/#{cipher_opts_handle}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Put.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)["handleId"] : JSON.parse(res.body)
+    end
+
+
+    def drop_reader_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/reader/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def drop_writer_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/immutable-data/writer/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+  end
+
+  class Cipher
+    def initialize(client_obj)
+      @client = client_obj
+    end
+
+    def get_handle(enc_type = 'PLAIN', sym_key_handle = nil)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/cipher-opts/#{enc_type}"
+      url << "/#{sym_key_handle}?" if sym_key_handle
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)["handleId"] : JSON.parse(res.body)
+    end
+
+    def drop_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/cipher-opts/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+  end
+
+  class DataId
+    def initialize(client_obj)
+      @client = client_obj
+    end
+
+    def get_data_id_sd(name, type_tag = 500)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/data-id/structured-data"
+
+      # Payload
+      payload = {
+        name: name,
+        typeTag: type_tag
+      }
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
+    end
+
+    def get_data_id_ad(name, is_private = false)
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/data-id/appendable-data"
+
+      # Payload
+      payload = {
+        name: name,
+        isPrivate: is_private
+      }
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
+    end
+
+    def drop_handle(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/data-id/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Delete.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
+    def serialize(handle_id)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/data-id/#{handle_id}"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Get.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}"
+      })
+      res = http.request(req)
+      res.code == "200" ? res.body : JSON.parse(res.body)
+    end
+
+    def deserialize(contents)
+      # entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/data-id"
+
+      # api call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      headers = {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type': 'text/plain'
+      }
+      headers["Content-Length"] = contents.size.to_s
+      req = Net::HTTP::Post.new(uri.path, headers)
+      req.body = contents
+      res = http.request(req)
+      res.code == "200" ? JSON.parse(res.body)['handleId'] : JSON.parse(res.body)
+    end
+
+  end
+
+  def self.s2h(str)
+    # Digest::SHA2.new(256).hexdigest(str)
+    Digest::SHA2.new(256).base64digest(str)
   end
 end

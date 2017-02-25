@@ -2,7 +2,7 @@
 
 A simple SAFE API wrapper written in Ruby.
 
-**Tested Aug 14, 2016. Working with SAFE version 0.5.**
+**Tested Feb 24, 2017. Working with SAFE version 0.5.**
 
 ## Installation
 ```
@@ -14,18 +14,18 @@ A simple SAFE API wrapper written in Ruby.
 ```ruby
 require "safenet"
 
-my_client = SafeNet::Client.new
-my_client.nfs.create_public_directory("/mydir")
-my_client.nfs.create_file("/mydir/index.html", "Hello world!<br>I'm a webpage :D")
-my_client.dns.register_service("my-wonderful-app", "www", "/mydir")
-my_client.nfs.get_file("/mydir/index.html")
+safe = SafeNet::Client.new(permissions: ["SAFE_DRIVE_ACCESS"])
+safe.nfs.create_public_directory("/mydir")
+safe.nfs.create_file("/mydir/index.html", "Hello world!<br>I'm a webpage :D")
+safe.dns.register_service("my-wonderful-app", "www", "/mydir")
+safe.nfs.get_file("/mydir/index.html")
 
 # Then, open http://www.my-wonderful-app.safenet/
 ```
 
 You can also set a more detailed App info:
 ```
-my_client = SafeNet::Client.new({
+safe = SafeNet::Client.new({
   name:      "Ruby Demo App",
   version:   "0.0.1",
   vendor:    "Vendor's Name",
@@ -36,46 +36,100 @@ my_client = SafeNet::Client.new({
 *File Upload / Download:*
 ```ruby
 # upload
-my_client.nfs.create_file("/mydir/dog.jpg", File.read("/home/daniel/Pictures/dog.jpg"), content_type: "image/jpeg")
+safe.nfs.create_file("/mydir/dog.jpg", File.read("/home/daniel/Pictures/dog.jpg"), content_type: "image/jpeg")
 
 # download
 File.open("/home/daniel/Pictures/dog-new.jpg", "w") do |file|
-  file.write(my_client.nfs.get_file("/mydir/dog.jpg")["body"])
+  file.write(safe.nfs.get_file("/mydir/dog.jpg")["body"])
 end
 ```
 
 *Directory's file list:*
 ```ruby
-my_client.nfs.get_directory("/mydir")["files"].each do |file|
+safe.nfs.get_directory("/mydir")["files"].each do |file|
   puts file["name"]
 end
 ```
 
-## Structured Data (SD): **EMULATED**
-Although SD has not been officially implemented by MaidSafe yet, we provide a sub-module (sd) that emulates it.
-All the information are stored in the Safe Network, through DNS/NFS sub-systems.
+## Structured Data (SD):
 
-Example:
 ```ruby
-my_client.sd.update(37267, 11, "Hi John") # 37267 = id, 11 = tag_type
-my_client.sd.get(37267, 11)
-my_client.sd.update(37267, 11, "Hello World!")
+# client
+safe = SafeNet::Client.new(permissions: ["LOW_LEVEL_API"])
 
-my_client.raw.create("Hello World!") # => "861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8"
-my_client.raw.create_from_file("/home/daniel/dog.jpg")
-my_client.raw.get("861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8") # => "Hello World!"
+# plain (not encrypted)
+hnd_cipher = safe.cipher.get_handle
+
+# create
+name = SafeNet::s2h("my_sd")
+hnd = safe.sd.create(name, 500, hnd_cipher, IO.binread("#{Rails.root}/my_file.txt"))
+safe.sd.put(hnd) # saves on the network
+safe.sd.drop_handle(hnd) # release handler
+
+# release cipher handler
+safe.cipher.drop_handle(hnd_cipher)
+
+# read
+name = SafeNet::s2h("my_sd")
+hnd_sd_data_id = safe.data_id.get_data_id_sd(name)
+hnd_sd = safe.sd.get_handle(hnd_sd_data_id)['handleId']
+contents = safe.sd.read(hnd_sd)
+safe.sd.drop_handle(hnd_sd)
+safe.data_id.drop_handle(hnd_sd_data_id)
+puts contents # print SD contents on screen
 ```
 
-Encryption and versioning are both not supported in this emulated version.
+## Immutable Data:
 
-For more information see:
-https://github.com/maidsafe/rfcs/blob/master/text/0028-launcher-low-level-api/0028-launcher-low-level-api.md
+```ruby
+# client
+safe = SafeNet::Client.new(permissions: ["LOW_LEVEL_API"])
+
+# plain (not encrypted)
+hnd_cipher = safe.cipher.get_handle
+
+# write
+hnd_w = safe.immutable.get_writer_handle
+safe.immutable.write_data(hnd_w, 'Hello World')
+hnd_data_id = safe.immutable.close_writer(hnd_w, hnd_cipher)
+name = safe.data_id.serialize(hnd_data_id) # IMMUTABLE NAME
+safe.immutable.drop_writer_handle(hnd_w)
+safe.data_id.drop_handle(hnd_data_id)
+puts "Immutable name: #{name}"
+
+# read
+hnd_data_id = safe.data_id.deserialize(name)
+hnd_r = safe.immutable.get_reader_handle(hnd_data_id)
+contents = safe.immutable.read(hnd_r)
+safe.immutable.drop_reader_handle(hnd_r)
+safe.data_id.drop_handle(hnd_data_id)
+puts contents
+
+# read - seek position
+chunk_pos = 0
+max_chunk_size = 100_000
+
+hnd_data_id = safe.data_id.deserialize(name)
+hnd_r = safe.immutable.get_reader_handle(hnd_data_id)
+contents = safe.immutable.read(hnd_r, "bytes=#{chunk_pos}-#{chunk_pos+max_chunk_size}")
+safe.immutable.drop_reader_handle(hnd_r)
+safe.data_id.drop_handle(hnd_data_id)
+puts contents
+```
+
+<!-- id = SafeNet.s2h("my_sd")
+safe.sd.update(id, 500, "Hi John")
+safe.sd.get(id, 500)
+safe.sd.update(id, 500, "Hello World!") -->
+
+<!-- id = safe.immutable.create("Hello World!") # => "861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8"
+safe.immutable.create_from_file("/home/daniel/dog.jpg")
+safe.immutable.get(id) # => "Hello World!" -->
+```
 
 ## Supported methods:
 |Module|Method|Arguments|Optional|Doc|
 |------|------|---------|--------|---|
-|sd|update|id (_int_), tag_type (_int_), contents (_string_\|_binary_)|||
-|sd|get|id (_int_), tag_type (_int_)|||
 |nfs|create_public_directory|dir_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* _Alias to "create_directory"_|
 |nfs|create_private_directory|dir_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* _Alias to "create_directory"_|
 |nfs|create_directory|dir_path (_string_)|is_private (_bool_), root_path ("_app_" or "_drive_"), meta (_string_)|https://maidsafe.readme.io/docs/nfs-create-directory|
@@ -95,3 +149,9 @@ https://github.com/maidsafe/rfcs/blob/master/text/0028-launcher-low-level-api/00
 |dns|list_services|long_name (_string_)||https://maidsafe.readme.io/docs/dns-list-services|
 |dns|get_home_dir|long_name (_string_), service_name (_string_)||https://maidsafe.readme.io/docs/dns-get-home-dir|
 |dns|get_file_unauth|long_name (_string_), service_name (_string_), file_path (_string_)||https://maidsafe.readme.io/docs/dns-get-file-unauth|
+
+## TODO
+* Improve test suite
+* Improve documentation
+* Use FFI instead of REST
+* Use the same interface (same method names) as [safe_app_nodejs](https://github.com/maidsafe/safe_app_nodejs)

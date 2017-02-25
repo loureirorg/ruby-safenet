@@ -8,8 +8,9 @@ Gem::Specification.new do |spec|
   spec.version       = Safenet::VERSION
   spec.authors       = ["Daniel Loureiro"]
   spec.email         = ["loureirorg@gmail.com"]
+  spec.licenses      = ['CC0-1.0']
 
-  spec.summary       = %q{Ruby library for accessing the SAFE network}
+  spec.summary       = %q{Ruby wrapper for the SAFE network}
   spec.description   = %q{Ruby library for accessing the SAFE network}
   spec.homepage      = "https://github.com/loureirorg/ruby-safenet"
 
@@ -28,4 +29,5 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "bundler", "~> 1.10"
   spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency "rspec", "~> 3.0"
 end

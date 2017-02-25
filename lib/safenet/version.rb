@@ -1,3 +1,3 @@
 module Safenet
-  VERSION = "0.2.4"
+  VERSION = "0.5.1"
 end
