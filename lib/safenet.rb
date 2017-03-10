@@ -98,7 +98,7 @@ module SafeNet
     #
     # Reference: https://maidsafe.readme.io/docs/auth
     #
-    def auth()
+    def auth
       # entry point
       url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/auth"
 
@@ -1009,13 +1009,24 @@ module SafeNet
 
     def read_or_create(name, contents = '', type = 500)
       sd = @client.sd.read(name)
-      if sd.is_a?(Hash) # doesn't exist
+      if sd.is_a?(Hash) && (sd["errorCode"] == 404) # doesn't exist
         sd = contents
         @client.sd.create(name, sd, type)
       end
-
       sd
     end
+
+    # create or update
+    def set(name, contents = '', type = 500)
+      sd = @client.sd.update(name, contents)
+      if sd.is_a?(Hash) && (sd["errorCode"] == -22) # doesn't exist
+        sd = @client.sd.create(name, contents)
+      end
+      sd
+    end
+
+    # aliases
+    alias_method :get, :read
   end
 
   class Immutable
