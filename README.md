@@ -158,6 +158,7 @@ puts contents
 |nfs|delete_directory|dir_path (_string_)|root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/nfs-create-directory|
 |nfs|create_file|file_path (_string_), contents (_string_ \| _binary_)|root_path ("_app_" or "_drive_"), meta (_string_), content_type (_string_)|https://maidsafe.readme.io/docs/nfsfile|
 |nfs|get_file|file_path (_string_)|root_path ("_app_" or "_drive_"), offset (_int_), length (_int_), range (eg. "bytes 0-1000")|https://maidsafe.readme.io/docs/nfs-get-file|
+|nfs|move_file|||https://api.safedev.org/nfs/file/move-file.html|
 |nfs|rename_file|file_path (_string_), new_name (_string_)|root_path ("_app_" or "_drive_"), meta (_string_)|* Alias to "update_file_meta"|
 |nfs|update_file_meta|file_path (_string_)|root_path ("_app_" or "_drive_"), meta (_string_), name (_string_)|https://maidsafe.readme.io/docs/nfs-update-file-metadata|
 |nfs|delete_file|file_path (_string_)|root_path ("_app_" or "_drive_")|https://maidsafe.readme.io/docs/nfs-delete-file|

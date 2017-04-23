@@ -494,6 +494,31 @@ module SafeNet
     end
 
 
+    # Move or copy a file
+    def move_file(src_root_path, src_path, dst_root_path, dst_path, action = 'move')
+      # Entry point
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/movefile"
+
+      # Payload
+      payload = {}
+      payload["srcRootPath"] = src_root_path # 'app' or 'drive'
+      payload["srcPath"] = src_path
+      payload["destRootPath"] = dst_root_path # 'app' or 'drive'
+      payload["destPath"] = dst_path
+      payload["action"] = action
+
+      # API call
+      uri = URI(url)
+      http = Net::HTTP.new(uri.host, uri.port)
+      req = Net::HTTP::Post.new(uri.path, {
+        'Authorization' => "Bearer #{@client.key_helper.get_valid_token()}",
+        'Content-Type' => 'application/json'
+      })
+      req.body = payload.to_json
+      res = http.request(req)
+      res.code == "200" ? true : JSON.parse(res.body)
+    end
+
     #
     # Delete a file.
     # Only authorised requests can invoke the API.
