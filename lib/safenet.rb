@@ -2,12 +2,16 @@ require "safenet/version"
 require "net/http"
 require "base64"
 require "json"
-require "cgi" # CGI.escape method
+require "cgi" # SafeNet.escape method
 
 API_VERSION = 0.5
 API_ENDPOINT = "http://localhost:8100/"
 
 module SafeNet
+
+  def self.escape(str)
+    CGI.escape(str).gsub(/\+/, '%20')
+  end
 
   class Client
     attr_reader :auth, :nfs, :dns, :sd, :ad, :immutable, :cipher, :data_id, :app_info, :key_helper
@@ -210,7 +214,7 @@ module SafeNet
       options[:is_private]     = true  if ! options.has_key?(:is_private)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{SafeNet.escape(dir_path)}"
 
       # Payload
       payload = {
@@ -259,7 +263,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{SafeNet.escape(dir_path)}"
 
       # API call
       uri = URI(url)
@@ -288,11 +292,11 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{SafeNet.escape(dir_path)}"
 
       # Optional payload
       payload = {}
-      payload["name"] = CGI.escape(options[:name]) if options.has_key?(:name)
+      payload["name"] = SafeNet.escape(options[:name]) if options.has_key?(:name)
       payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
 
       # API call
@@ -329,7 +333,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{CGI.escape(dir_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/directory/#{options[:root_path]}/#{SafeNet.escape(dir_path)}"
 
       # API call
       uri = URI(url)
@@ -359,7 +363,7 @@ module SafeNet
       contents ||= ""
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{SafeNet.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -393,7 +397,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{SafeNet.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -429,7 +433,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}?"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{SafeNet.escape(file_path)}?"
 
       # Query params
       query = []
@@ -468,11 +472,11 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/metadata/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/metadata/#{options[:root_path]}/#{SafeNet.escape(file_path)}"
 
       # Optional payload
       payload = {}
-      payload["name"] = CGI.escape(options[:name]) if options.has_key?(:name)
+      payload["name"] = SafeNet.escape(options[:name]) if options.has_key?(:name)
       payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
 
       # API call
@@ -535,7 +539,7 @@ module SafeNet
       options[:root_path] = 'app' if ! options.has_key?(:root_path)
 
       # Entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/nfs/file/#{options[:root_path]}/#{SafeNet.escape(file_path)}"
 
       # API call
       uri = URI(url)
@@ -566,7 +570,7 @@ module SafeNet
     #
     def create_long_name(long_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{SafeNet.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -671,7 +675,7 @@ module SafeNet
     # https://maidsafe.readme.io/docs/dns-list-services
     def list_services(long_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{SafeNet.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -687,7 +691,7 @@ module SafeNet
     # https://maidsafe.readme.io/docs/dns-get-home-dir
     def get_home_dir(long_name, service_name)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{SafeNet.escape(service_name)}/#{SafeNet.escape(long_name)}"
 
       # api call
       uri = URI(url)
@@ -704,7 +708,7 @@ module SafeNet
     # get_file_unauth("thegoogle", "www", "index.html")
     def get_file_unauth(long_name, service_name, file_path)
       # entry point
-      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{CGI.escape(service_name)}/#{CGI.escape(long_name)}/#{CGI.escape(file_path)}"
+      url = "#{@client.app_info[:launcher_server]}#{API_VERSION}/dns/#{SafeNet.escape(service_name)}/#{SafeNet.escape(long_name)}/#{SafeNet.escape(file_path)}"
 
       # api call
       uri = URI(url)
