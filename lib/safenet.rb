@@ -296,7 +296,7 @@ module SafeNet
 
       # Optional payload
       payload = {}
-      payload["name"] = SafeNet.escape(options[:name]) if options.has_key?(:name)
+      payload["name"] = options[:name] if options.has_key?(:name)
       payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
 
       # API call
@@ -476,7 +476,7 @@ module SafeNet
 
       # Optional payload
       payload = {}
-      payload["name"] = SafeNet.escape(options[:name]) if options.has_key?(:name)
+      payload["name"] = options[:name] if options.has_key?(:name)
       payload["metadata"] = Base64.strict_encode64(options[:meta]) if options.has_key?(:meta)
 
       # API call
