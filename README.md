@@ -3,7 +3,6 @@
 A simple SAFE API wrapper written in Ruby.
 
 **Currently Outdated: It doesn't work with the new Authenticator paradigm**
-**Tested Feb 24, 2017. Working with SAFE version 0.5.**
 
 ## Installation
 ```
@@ -175,5 +174,5 @@ puts contents
 * Improve test suite;
 * Improve documentation;
 * Use FFI instead of REST;
-* Use the same interface (same method names) as [safe_app_nodejs](https://github.com/maidsafe/safe_app_nodejs);
+* Use the same interface (same method names) as [safe_app_nodejs](http://docs.maidsafe.net/safe_app_nodejs/);
 * Each method should have 2 versions: a regular version that fails gracefully on errors, a "!" version that raises an exception on errors;
