@@ -2,6 +2,7 @@
 
 A simple SAFE API wrapper written in Ruby.
 
+**Currently Outdated: It doesn't work with the new Authenticator paradigm**
 **Tested Feb 24, 2017. Working with SAFE version 0.5.**
 
 ## Installation
@@ -171,7 +172,8 @@ puts contents
 |dns|get_file_unauth|long_name (_string_), service_name (_string_), file_path (_string_)||https://maidsafe.readme.io/docs/dns-get-file-unauth|
 
 ## TODO
-* Improve test suite
-* Improve documentation
-* Use FFI instead of REST
-* Use the same interface (same method names) as [safe_app_nodejs](https://github.com/maidsafe/safe_app_nodejs)
+* Improve test suite;
+* Improve documentation;
+* Use FFI instead of REST;
+* Use the same interface (same method names) as [safe_app_nodejs](https://github.com/maidsafe/safe_app_nodejs);
+* Each method should have 2 versions: a regular version that fails gracefully on errors, a "!" version that raises an exception on errors;
